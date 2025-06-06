@@ -6,20 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Save } from "lucide-react";
+import { Users, Save, Filter, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const BulkAttendanceEntry = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
-  const [filterType, setFilterType] = useState<"department" | "status">("department");
-  const [selectedFilter, setSelectedFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [attendanceData, setAttendanceData] = useState({
     date: new Date().toISOString().split('T')[0],
-    defaultInTime: "09:00",
-    defaultOutTime: "18:00",
     defaultStatus: "1" // For office staff
   });
+  const [individualTimes, setIndividualTimes] = useState<{[key: string]: {inTime: string, outTime: string, status: string}}>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -28,17 +27,32 @@ const BulkAttendanceEntry = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedFilter) {
-      const filtered = employees.filter(emp => 
-        filterType === "department" 
-          ? emp.department === selectedFilter
-          : emp.status === selectedFilter
-      );
-      setFilteredEmployees(filtered);
-    } else {
-      setFilteredEmployees([]);
+    let filtered = employees;
+
+    if (departmentFilter) {
+      filtered = filtered.filter(emp => emp.department === departmentFilter);
     }
-  }, [selectedFilter, filterType, employees]);
+
+    if (statusFilter) {
+      filtered = filtered.filter(emp => emp.status === statusFilter);
+    }
+
+    setFilteredEmployees(filtered);
+
+    // Initialize individual times for new employees
+    const newTimes = { ...individualTimes };
+    filtered.forEach(emp => {
+      if (!newTimes[emp.id]) {
+        const isOfficeStaff = emp.department === "OFFICE STAFF";
+        newTimes[emp.id] = {
+          inTime: isOfficeStaff ? "" : "09:00",
+          outTime: isOfficeStaff ? "" : "18:00",
+          status: isOfficeStaff ? "1" : "1"
+        };
+      }
+    });
+    setIndividualTimes(newTimes);
+  }, [departmentFilter, statusFilter, employees]);
 
   const getUniqueValues = (field: string) => {
     return Array.from(new Set(employees.map(emp => emp[field])));
@@ -58,6 +72,24 @@ const BulkAttendanceEntry = () => {
     return diffMs / (1000 * 60 * 60);
   };
 
+  const updateIndividualTime = (employeeId: string, field: 'inTime' | 'outTime' | 'status', value: string) => {
+    setIndividualTimes(prev => ({
+      ...prev,
+      [employeeId]: {
+        ...prev[employeeId],
+        [field]: value
+      }
+    }));
+  };
+
+  const clearDepartmentFilter = () => {
+    setDepartmentFilter("");
+  };
+
+  const clearStatusFilter = () => {
+    setStatusFilter("");
+  };
+
   const handleBulkSave = () => {
     if (filteredEmployees.length === 0) {
       toast({
@@ -74,6 +106,7 @@ const BulkAttendanceEntry = () => {
 
     filteredEmployees.forEach(employee => {
       const isOfficeStaff = employee.department === "OFFICE STAFF";
+      const empTimes = individualTimes[employee.id];
       
       // Check if attendance already exists
       const existingRecordIndex = existingAttendance.findIndex(
@@ -81,8 +114,8 @@ const BulkAttendanceEntry = () => {
       );
 
       const workingHours = isOfficeStaff 
-        ? (attendanceData.defaultStatus === "1" ? 8 : 0) 
-        : calculateWorkingHours(attendanceData.defaultInTime, attendanceData.defaultOutTime);
+        ? (empTimes?.status === "1" ? 8 : 0) 
+        : calculateWorkingHours(empTimes?.inTime || "", empTimes?.outTime || "");
 
       const attendanceRecord = {
         id: existingRecordIndex >= 0 ? existingAttendance[existingRecordIndex].id : Date.now().toString() + employee.id,
@@ -91,10 +124,10 @@ const BulkAttendanceEntry = () => {
         department: employee.department,
         status: employee.status,
         date: attendanceData.date,
-        inTime: isOfficeStaff ? "" : attendanceData.defaultInTime,
-        outTime: isOfficeStaff ? "" : attendanceData.defaultOutTime,
+        inTime: isOfficeStaff ? "" : (empTimes?.inTime || ""),
+        outTime: isOfficeStaff ? "" : (empTimes?.outTime || ""),
         workingHours: workingHours,
-        attendanceStatus: isOfficeStaff ? attendanceData.defaultStatus : "1",
+        attendanceStatus: empTimes?.status || "1",
         isOfficeStaff: isOfficeStaff,
         createdAt: existingRecordIndex >= 0 ? existingAttendance[existingRecordIndex].createdAt : new Date().toISOString()
       };
@@ -116,24 +149,26 @@ const BulkAttendanceEntry = () => {
     });
 
     // Reset form
-    setSelectedFilter("");
+    setDepartmentFilter("");
+    setStatusFilter("");
     setFilteredEmployees([]);
+    setIndividualTimes({});
   };
 
   return (
-    <Card className="max-w-4xl mx-auto shadow-lg">
+    <Card className="max-w-6xl mx-auto shadow-lg">
       <CardHeader className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-lg">
         <CardTitle className="flex items-center gap-2">
           <Users size={24} />
           Bulk Attendance Entry
         </CardTitle>
         <CardDescription className="text-purple-100">
-          Mark attendance for multiple employees by department or status
+          Mark attendance for multiple employees with individual time settings
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6">
         <div className="space-y-6">
-          {/* Date and Filter Controls */}
+          {/* Date */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Date</Label>
@@ -143,117 +178,180 @@ const BulkAttendanceEntry = () => {
                 onChange={(e) => setAttendanceData({ ...attendanceData, date: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Filter By</Label>
-              <Select onValueChange={(value: "department" | "status") => {
-                setFilterType(value);
-                setSelectedFilter("");
-                setFilteredEmployees([]);
-              }} value={filterType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="department">Department</SelectItem>
-                  <SelectItem value="status">Status</SelectItem>
-                </SelectContent>
-              </Select>
+          </div>
+
+          {/* Filter Buttons */}
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Filter size={16} />
+                <span className="font-medium">Filter by Department:</span>
+              </div>
+              {getUniqueValues("department").map((dept) => (
+                <Button
+                  key={dept}
+                  variant={departmentFilter === dept ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDepartmentFilter(dept)}
+                  className="text-xs"
+                >
+                  {dept}
+                </Button>
+              ))}
+              {departmentFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearDepartmentFilter}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <X size={14} />
+                  Clear
+                </Button>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label>{filterType === "department" ? "Department" : "Status"}</Label>
-              <Select onValueChange={setSelectedFilter} value={selectedFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Select ${filterType}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {getUniqueValues(filterType).map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Filter size={16} />
+                <span className="font-medium">Filter by Status:</span>
+              </div>
+              {getUniqueValues("status").map((status) => (
+                <Button
+                  key={status}
+                  variant={statusFilter === status ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setStatusFilter(status)}
+                  className="text-xs"
+                >
+                  {status}
+                </Button>
+              ))}
+              {statusFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearStatusFilter}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <X size={14} />
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
 
-          {/* Default Time Settings for Factory Workers */}
-          {filteredEmployees.some(emp => emp.department !== "OFFICE STAFF") && (
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold mb-3 text-blue-800">Default Times for Factory Workers</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Default In Time</Label>
-                  <Input
-                    type="time"
-                    value={attendanceData.defaultInTime}
-                    onChange={(e) => setAttendanceData({ ...attendanceData, defaultInTime: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Default Out Time</Label>
-                  <Input
-                    type="time"
-                    value={attendanceData.defaultOutTime}
-                    onChange={(e) => setAttendanceData({ ...attendanceData, defaultOutTime: e.target.value })}
-                  />
-                </div>
+          {/* Active Filters Display */}
+          {(departmentFilter || statusFilter) && (
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Active Filters:</h4>
+              <div className="flex gap-2">
+                {departmentFilter && (
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    Department: {departmentFilter}
+                  </Badge>
+                )}
+                {statusFilter && (
+                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    Status: {statusFilter}
+                  </Badge>
+                )}
               </div>
             </div>
           )}
 
-          {/* Default Status for Office Staff */}
-          {filteredEmployees.some(emp => emp.department === "OFFICE STAFF") && (
-            <div className="p-4 bg-green-50 rounded-lg">
-              <h3 className="font-semibold mb-3 text-green-800">Default Status for Office Staff</h3>
-              <div className="space-y-2">
-                <Label>Default Attendance Status</Label>
-                <Select onValueChange={(value) => setAttendanceData({ ...attendanceData, defaultStatus: value })}>
-                  <SelectTrigger className="w-full md:w-64">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Present (1)</SelectItem>
-                    <SelectItem value="L">Leave (L)</SelectItem>
-                    <SelectItem value="A">Absent (A)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          {/* Employee List Preview */}
+          {/* Employee List with Individual Times */}
           {filteredEmployees.length > 0 && (
             <div className="space-y-4">
               <h3 className="font-semibold text-lg">
                 Selected Employees ({filteredEmployees.length})
               </h3>
-              <div className="max-h-64 overflow-y-auto border rounded-lg p-4 bg-gray-50">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredEmployees.map((employee) => (
-                    <div key={employee.id} className="bg-white p-3 rounded-lg shadow-sm">
-                      <div className="font-medium text-sm">{employee.name}</div>
-                      <div className="text-xs text-gray-600">{employee.employeeId}</div>
-                      <div className="flex gap-1 mt-1">
-                        <Badge 
-                          variant="secondary" 
-                          className="text-xs bg-blue-100 text-blue-800"
-                        >
-                          {employee.department}
-                        </Badge>
-                        <Badge 
-                          variant={employee.status === "PAYROLL" ? "default" : "secondary"}
-                          className={`text-xs ${
-                            employee.status === "PAYROLL" 
-                              ? "bg-green-100 text-green-800" 
-                              : "bg-orange-100 text-orange-800"
-                          }`}
-                        >
-                          {employee.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="max-h-96 overflow-y-auto border rounded-lg">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">In Time</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Out Time</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredEmployees.map((employee) => {
+                      const isOfficeStaff = employee.department === "OFFICE STAFF";
+                      const empTimes = individualTimes[employee.id] || { inTime: "", outTime: "", status: "1" };
+                      
+                      return (
+                        <tr key={employee.id} className="hover:bg-gray-50">
+                          <td className="p-3">
+                            <div>
+                              <div className="font-medium text-sm">{employee.name}</div>
+                              <div className="text-xs text-gray-500">{employee.employeeId}</div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                              {employee.department}
+                            </Badge>
+                          </td>
+                          <td className="p-3">
+                            <Badge 
+                              variant={employee.status === "PAYROLL" ? "default" : "secondary"}
+                              className={`text-xs ${
+                                employee.status === "PAYROLL" 
+                                  ? "bg-green-100 text-green-800" 
+                                  : "bg-orange-100 text-orange-800"
+                              }`}
+                            >
+                              {employee.status}
+                            </Badge>
+                          </td>
+                          <td className="p-3">
+                            {!isOfficeStaff ? (
+                              <Input
+                                type="time"
+                                value={empTimes.inTime}
+                                onChange={(e) => updateIndividualTime(employee.id, 'inTime', e.target.value)}
+                                className="w-32"
+                              />
+                            ) : (
+                              <span className="text-gray-400 text-sm">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {!isOfficeStaff ? (
+                              <Input
+                                type="time"
+                                value={empTimes.outTime}
+                                onChange={(e) => updateIndividualTime(employee.id, 'outTime', e.target.value)}
+                                className="w-32"
+                              />
+                            ) : (
+                              <span className="text-gray-400 text-sm">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <Select 
+                              value={empTimes.status} 
+                              onValueChange={(value) => updateIndividualTime(employee.id, 'status', value)}
+                            >
+                              <SelectTrigger className="w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">Present</SelectItem>
+                                <SelectItem value="L">Leave</SelectItem>
+                                <SelectItem value="A">Absent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -270,9 +368,15 @@ const BulkAttendanceEntry = () => {
             </Button>
           </div>
 
-          {filteredEmployees.length === 0 && selectedFilter && (
+          {filteredEmployees.length === 0 && (departmentFilter || statusFilter) && (
             <div className="text-center py-8 text-gray-500">
-              No employees found for the selected {filterType}.
+              No employees found for the selected filters.
+            </div>
+          )}
+
+          {!departmentFilter && !statusFilter && (
+            <div className="text-center py-8 text-gray-500">
+              Please select department or status filters to view employees.
             </div>
           )}
         </div>
