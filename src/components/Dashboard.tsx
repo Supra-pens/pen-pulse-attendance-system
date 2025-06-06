@@ -6,6 +6,26 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Calendar, Clock, Users, TrendingUp } from "lucide-react";
 
+interface EmployeeStats {
+  name: string;
+  department: string;
+  status: string;
+  totalHours: number;
+  totalDays: number;
+  presentDays: number;
+  leaveDays: number;
+  absentDays: number;
+}
+
+interface DepartmentSummary {
+  name: string;
+  totalHours: number;
+  totalEmployees: number;
+  presentCount: number;
+  leaveCount: number;
+  absentCount: number;
+}
+
 const Dashboard = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
@@ -19,13 +39,13 @@ const Dashboard = () => {
     setAttendance(storedAttendance);
   }, []);
 
-  const getMonthlyReport = () => {
+  const getMonthlyReport = (): EmployeeStats[] => {
     const monthAttendance = attendance.filter(record => 
       record.date.startsWith(selectedMonth) &&
       (selectedDepartment === "ALL" || record.department === selectedDepartment)
     );
 
-    const employeeStats: any = {};
+    const employeeStats: Record<string, EmployeeStats> = {};
 
     monthAttendance.forEach(record => {
       if (!employeeStats[record.employeeId]) {
@@ -61,9 +81,9 @@ const Dashboard = () => {
     return Object.values(employeeStats);
   };
 
-  const getDepartmentSummary = () => {
+  const getDepartmentSummary = (): DepartmentSummary[] => {
     const monthAttendance = attendance.filter(record => record.date.startsWith(selectedMonth));
-    const summary: any = {};
+    const summary: Record<string, Omit<DepartmentSummary, 'totalEmployees'> & { totalEmployees: Set<string> }> = {};
 
     monthAttendance.forEach(record => {
       if (!summary[record.department]) {
@@ -78,7 +98,7 @@ const Dashboard = () => {
       }
 
       summary[record.department].totalEmployees.add(record.employeeId);
-      summary[record.department].totalHours += record.workingHours;
+      summary[record.department].totalHours += record.workingHours || 0;
 
       if (record.attendanceStatus === "1") {
         summary[record.department].presentCount += 1;
@@ -89,7 +109,7 @@ const Dashboard = () => {
       }
     });
 
-    return Object.values(summary).map((dept: any) => ({
+    return Object.values(summary).map((dept) => ({
       ...dept,
       totalEmployees: dept.totalEmployees.size
     }));
