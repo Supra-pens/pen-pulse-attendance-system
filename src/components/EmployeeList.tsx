@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Users, Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, Filter, UserPlus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const DEPARTMENTS = [
   "ALL",
@@ -18,11 +20,30 @@ const DEPARTMENTS = [
 
 const STATUS_OPTIONS = ["ALL", "PAYROLL", "NON PAYROLL"];
 
+const DUMMY_EMPLOYEES = [
+  { name: "Rajesh Kumar", department: "MOULDING DEPT. (A & B SHIFT)", status: "PAYROLL", employeeId: "MP001" },
+  { name: "Priya Sharma", department: "MOULDING DEPT. (A & B SHIFT)", status: "NON PAYROLL", employeeId: "MN001" },
+  { name: "Amit Singh", department: "FOILING & HOT STAMPING DEPT.", status: "PAYROLL", employeeId: "FP001" },
+  { name: "Sunita Devi", department: "FOILING & HOT STAMPING DEPT.", status: "NON PAYROLL", employeeId: "FN001" },
+  { name: "Vikash Yadav", department: "DAY SHIFT REFILLING DEPT.", status: "PAYROLL", employeeId: "RP001" },
+  { name: "Kavita Gupta", department: "DAY SHIFT REFILLING DEPT.", status: "NON PAYROLL", employeeId: "RN001" },
+  { name: "Ravi Verma", department: "EXTRUSION DEPT. (A & B SHIFT)", status: "PAYROLL", employeeId: "EP001" },
+  { name: "Meera Joshi", department: "EXTRUSION DEPT. (A & B SHIFT)", status: "NON PAYROLL", employeeId: "EN001" },
+  { name: "Suresh Patel", department: "PEN ASSEMBLING DEPT.", status: "PAYROLL", employeeId: "PP001" },
+  { name: "Anita Roy", department: "PEN ASSEMBLING DEPT.", status: "NON PAYROLL", employeeId: "PN001" },
+  { name: "Deepak Mishra", department: "DESPATCH DEPT. DAY SHIFT", status: "PAYROLL", employeeId: "DP001" },
+  { name: "Rekha Singh", department: "DESPATCH DEPT. DAY SHIFT", status: "NON PAYROLL", employeeId: "DN001" },
+  { name: "Manish Agarwal", department: "OFFICE STAFF", status: "PAYROLL", employeeId: "OP001" },
+  { name: "Seema Khanna", department: "OFFICE STAFF", status: "PAYROLL", employeeId: "OP002" },
+  { name: "Rohit Saxena", department: "OFFICE STAFF", status: "NON PAYROLL", employeeId: "ON001" }
+];
+
 const EmployeeList = () => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
+  const { toast } = useToast();
 
   useEffect(() => {
     const storedEmployees = JSON.parse(localStorage.getItem("employees") || "[]");
@@ -44,6 +65,37 @@ const EmployeeList = () => {
     setFilteredEmployees(filtered);
   }, [employees, selectedDepartment, selectedStatus]);
 
+  const addDummyEmployees = () => {
+    const existingEmployees = JSON.parse(localStorage.getItem("employees") || "[]");
+    const existingIds = existingEmployees.map((emp: any) => emp.employeeId);
+    
+    const newEmployees = DUMMY_EMPLOYEES.filter(emp => !existingIds.includes(emp.employeeId));
+    
+    if (newEmployees.length === 0) {
+      toast({
+        title: "Info",
+        description: "All dummy employees already exist in the system",
+        variant: "default"
+      });
+      return;
+    }
+
+    const employeesToAdd = newEmployees.map(emp => ({
+      ...emp,
+      registeredAt: new Date().toISOString(),
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9)
+    }));
+
+    const updatedEmployees = [...existingEmployees, ...employeesToAdd];
+    localStorage.setItem("employees", JSON.stringify(updatedEmployees));
+    setEmployees(updatedEmployees);
+
+    toast({
+      title: "Success",
+      description: `Added ${newEmployees.length} dummy employees for testing`
+    });
+  };
+
   const getDepartmentStats = () => {
     const stats: any = {};
     employees.forEach(emp => {
@@ -62,10 +114,20 @@ const EmployeeList = () => {
 
   const departmentStats = getDepartmentStats();
 
+  const getFilteredStats = () => {
+    return {
+      total: filteredEmployees.length,
+      payroll: filteredEmployees.filter(emp => emp.status === "PAYROLL").length,
+      nonPayroll: filteredEmployees.filter(emp => emp.status === "NON PAYROLL").length
+    };
+  };
+
+  const filteredStats = getFilteredStats();
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -103,6 +165,17 @@ const EmployeeList = () => {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Filtered Results</p>
+                <p className="text-3xl font-bold text-purple-600">{filteredStats.total}</p>
+              </div>
+              <Filter className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Employee List */}
@@ -117,8 +190,19 @@ const EmployeeList = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
+          {/* Add Dummy Data Button */}
+          <div className="mb-6">
+            <Button 
+              onClick={addDummyEmployees}
+              className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+            >
+              <UserPlus size={16} className="mr-2" />
+              Add Dummy Employees for Testing
+            </Button>
+          </div>
+
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="space-y-2">
               <label className="text-sm font-medium">Filter by Department</label>
               <Select onValueChange={setSelectedDepartment} value={selectedDepartment}>
@@ -148,6 +232,18 @@ const EmployeeList = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Current Filter Results</label>
+              <div className="p-2 border rounded-md bg-gray-50">
+                <div className="text-sm">
+                  <span className="font-medium">Total: {filteredStats.total}</span>
+                  <span className="mx-2">|</span>
+                  <span className="text-green-600">Payroll: {filteredStats.payroll}</span>
+                  <span className="mx-2">|</span>
+                  <span className="text-orange-600">Non-Payroll: {filteredStats.nonPayroll}</span>
+                </div>
+              </div>
             </div>
           </div>
 
