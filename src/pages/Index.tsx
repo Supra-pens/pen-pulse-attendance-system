@@ -2,9 +2,10 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Users, Calendar, BarChart3 } from "lucide-react";
+import { Clock, Users, Calendar, BarChart3, UserPlus } from "lucide-react";
 import EmployeeRegistration from "@/components/EmployeeRegistration";
 import AttendanceEntry from "@/components/AttendanceEntry";
+import BulkAttendanceEntry from "@/components/BulkAttendanceEntry";
 import EmployeeList from "@/components/EmployeeList";
 import Dashboard from "@/components/Dashboard";
 
@@ -22,7 +23,7 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white shadow-lg">
+          <TabsList className="grid w-full grid-cols-5 bg-white shadow-lg">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <BarChart3 size={16} />
               Dashboard
@@ -30,6 +31,10 @@ const Index = () => {
             <TabsTrigger value="attendance" className="flex items-center gap-2">
               <Clock size={16} />
               Attendance Entry
+            </TabsTrigger>
+            <TabsTrigger value="bulk-attendance" className="flex items-center gap-2">
+              <UserPlus size={16} />
+              Bulk Attendance
             </TabsTrigger>
             <TabsTrigger value="employees" className="flex items-center gap-2">
               <Users size={16} />
@@ -47,6 +52,10 @@ const Index = () => {
 
           <TabsContent value="attendance">
             <AttendanceEntry />
+          </TabsContent>
+
+          <TabsContent value="bulk-attendance">
+            <BulkAttendanceEntry />
           </TabsContent>
 
           <TabsContent value="employees">
